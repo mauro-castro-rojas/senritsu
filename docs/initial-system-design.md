@@ -177,10 +177,58 @@ application must expose practical buffer settings and test at 48 kHz with 64,
 1.33 ms for one buffer, but the user-visible round-trip latency also includes
 driver and hardware buffering.
 
+### Audio APIs, drivers, and devices
+
+Senritsu will use Windows audio APIs and installed audio drivers; it will not
+create or ship a hardware driver. JUCE selects the chosen API, opens an audio
+stream, and repeatedly invokes Senritsu's audio callback to request the next
+buffer of samples.
+
+An ASIO driver is normally supplied by the manufacturer of a professional audio
+interface. It lets a DAW communicate with that interface at small, stable
+buffer sizes and usually with exclusive control of the interface. It is the
+preferred path for live instruments, recording, and MIDI performance.
+
+WASAPI is the Windows audio API and works with ordinary speakers, headphones,
+Bluetooth devices, HDMI outputs, and many audio interfaces. It provides two
+relevant modes:
+
+- **Shared mode:** Windows mixes Senritsu with other applications. It is
+  convenient, but usually has higher latency.
+- **Exclusive mode:** Senritsu takes exclusive control of the output device and
+  can request lower latency. Other applications cannot use that device while
+  the stream is open.
+
+```text
+ASIO
+  Senritsu → JUCE → vendor ASIO driver → audio interface
+
+WASAPI, shared
+  Senritsu → JUCE → Windows Audio Engine → device driver → audio interface
+
+WASAPI, exclusive
+  Senritsu → JUCE → device driver → audio interface
+```
+
+One physical professional interface can often support both paths: its vendor
+ASIO driver is preferred for production, while WASAPI remains a reliable
+fallback. During device configuration, the user will choose a driver type,
+device, sample rate, and buffer size.
+
 ### Licensing checkpoint
 
 JUCE is available under AGPLv3 or a commercial license. Before distributing a
 closed-source Senritsu binary, select and comply with the appropriate JUCE
 license.
+
+
+
+Your environment currently has no CMake or C++ compiler available on PATH, so
+I could not compile it here. Install Visual Studio 2022 Community or Build Tools
+with Desktop development with C++, then open Developer PowerShell and run:
+
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Debug
+ctest --test-dir build -C Debug --output-on-failure
 
 
