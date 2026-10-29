@@ -99,10 +99,9 @@ concurrency problems in playback.
 
 ## Technology direction
 
-Use native C++ for the performance-critical application and audio engine. A
-cross-platform framework such as JUCE is a practical candidate because it
-provides audio-device, UI, MIDI, and VST3 facilities while keeping a route open
-to macOS and Linux.
+Use native C++ for the performance-critical application and audio engine. JUCE
+is selected for the initial audio-device and MIDI layer, and can also provide
+cross-platform UI support. It keeps a route open to macOS and Linux.
 
 Senritsu's project model, scheduler, audio graph, and engine interfaces should
 remain independent of framework-specific types. This keeps the architecture
@@ -123,20 +122,65 @@ DAW's core.
 6. **Ecosystem:** VST3 hosting, plugin isolation, advanced warping,
    collaboration, and controller support.
 
-## Deliberate deferrals and risk areas
+## First step: audio backend
 
-The riskiest areas are audio timing, third-party plugin hosting,
-time-stretching/warping, and UI complexity. The project should defer
-sophisticated warping and third-party plugin support until the audio and MIDI
-foundations are demonstrably reliable.
+### Decision
 
-## Product decision to make next
+Senritsu will use JUCE for its initial audio-device and MIDI integration layer.
+It will not use JUCE as the implementation of the Senritsu audio engine.
 
-Choose the first workflow emphasis:
+Senritsu will own its playback engine, audio graph, transport scheduler,
+mixing, DSP, and project model. JUCE will open Windows audio devices, select the
+driver API, and invoke Senritsu's real-time audio callback.
 
-- an Ableton-style clip launcher for live performance;
-- a traditional arrangement/timeline DAW; or
-- a small, polished hybrid that supports both at a basic level.
+```text
+Senritsu UI / Project / Audio Engine
+                │
+        IAudioBackend interface
+                │
+         JUCE implementation
+                │
+          ASIO or WASAPI
+                │
+          Audio interface
+```
 
-The initial choice will determine the first UI and project-model priorities,
-while the core audio-engine design can support all three directions.
+The engine-facing backend interface must use Senritsu's own types rather than
+JUCE types. The first implementation can be named `JuceAudioBackend`. This
+keeps a future native backend possible without making it necessary now.
+
+### Rationale
+
+JUCE provides mature, cross-platform audio-device and MIDI integration,
+including ASIO and WASAPI on Windows. It does not impose Senritsu's timing
+model, mixer design, routing, or DSP algorithms.
+
+Professional performance and sound quality depend primarily on the real-time
+engine design, the selected driver, the audio interface, and the DSP workload.
+JUCE does not prevent a professional-quality DAW when the audio callback obeys
+the real-time requirements in this document.
+
+A custom ASIO, WASAPI, or WDM-KS backend would add significant driver,
+device-management, and debugging work without improving the first MVP by
+itself. Senritsu should consider a native backend only after profiling shows a
+specific JUCE-related limitation that affects users.
+
+### Windows driver priorities
+
+1. Prefer **ASIO** for professional interfaces with an installed ASIO driver.
+2. Use **WASAPI** as the dependable built-in Windows fallback.
+3. Do not build direct WDM-KS or direct ASIO support for the MVP.
+
+Hardware and driver support determine the smallest reliable buffer size. The
+application must expose practical buffer settings and test at 48 kHz with 64,
+128, and 256 sample buffers. A 64-sample buffer at 48 kHz represents about
+1.33 ms for one buffer, but the user-visible round-trip latency also includes
+driver and hardware buffering.
+
+### Licensing checkpoint
+
+JUCE is available under AGPLv3 or a commercial license. Before distributing a
+closed-source Senritsu binary, select and comply with the appropriate JUCE
+license.
+
+
